@@ -10,8 +10,8 @@ const verifierUserRegex = /^(sock[ab]_\w+|user[ab]_\d+|sender_\d+|receiver_\d+)$
 const verifierEmailRegex = /^((a|b)_\d+@mail\.com|(sender|receiver)_\d+@mail\.com|sock[ab]_\w+@test\.local)$/i;
 const cookieOptions = {
   httpOnly: true,
-  sameSite: "lax",
-  secure: process.env.NODE_ENV === "production",
+  sameSite: "none",
+  secure: true,
   maxAge: 7 * 24 * 60 * 60 * 1000
 };
 
@@ -40,6 +40,7 @@ export const buildAuthRoutes = (jwtSecret) => {
 
     return res.status(201).json({
       message: "Account created successfully",
+      token,
       user: { id: String(user._id), username: user.username, email: user.email, avatarUrl: user.avatarUrl }
     });
   });
@@ -57,14 +58,14 @@ export const buildAuthRoutes = (jwtSecret) => {
     const token = signToken(user, jwtSecret);
     res.cookie("token", token, cookieOptions);
 
-    return res.json({ user: { id: String(user._id), username: user.username, email: user.email, avatarUrl: user.avatarUrl } });
+    return res.json({ token, user: { id: String(user._id), username: user.username, email: user.email, avatarUrl: user.avatarUrl } });
   });
 
   router.post("/logout", (req, res) => {
     res.clearCookie("token", {
       httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production"
+      sameSite: "none",
+      secure: true
     });
     return res.json({ message: "Logged out" });
   });

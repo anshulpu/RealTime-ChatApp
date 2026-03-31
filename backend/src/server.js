@@ -72,6 +72,7 @@ app.use(cookieParser());
 
 app.use("/api/auth", buildAuthRoutes(JWT_SECRET));
 app.use("/api/chat", buildChatRoutes(JWT_SECRET));
+app.get('/health', (req, res) => res.status(200).send('OK'));
 
 app.use("/uploads", express.static(uploadsPath));
 app.use(express.static(frontendPath));
@@ -81,19 +82,25 @@ io.use(authSocket(JWT_SECRET));
 let redisPubClient = null;
 let redisSubClient = null;
 
-connectDb(MONGODB_URI).then(async () => {
-  const redisSetup = await setupRedisAdapter(io, REDIS_URL);
-  redisPubClient = redisSetup.pubClient;
-  redisSubClient = redisSetup.subClient;
+connectDb(MONGODB_URI)
+  .then(async () => {
+    const redisSetup = await setupRedisAdapter(io, REDIS_URL);
+    redisPubClient = redisSetup.pubClient;
+    redisSubClient = redisSetup.subClient;
 
-  const socketState = createSocketState({ redisClient: redisPubClient });
-  registerSocketHandlers(io, { socketState });
+    const socketState = createSocketState({ redisClient: redisPubClient });       
+    registerSocketHandlers(io, { socketState });
 
-  server.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-    console.log(`Socket.IO adapter: ${redisSetup.enabled ? "redis" : "in-memory"}`);
+    server.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+      console.log(`Socket.IO adapter: ${redisSetup.enabled ? "redis" : "in-memory"}`);
+    });
+  })
+  .catch((err) => {
+    console.error("Failed to connect to MongoDB. Server not started.");
+    console.error(err.message);
+    process.exit(1);
   });
-});
 
 const gracefulShutdown = async () => {
   await Promise.allSettled([

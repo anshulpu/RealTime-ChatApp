@@ -1485,8 +1485,12 @@ async function login(email, password) {
     method: "POST",
     body: JSON.stringify({ email, password })
   });
-  token = data.token || "";
-  return data.user;
+  if (data.token) {
+    token = data.token;
+    // Optionally persist token for session continuity
+    // localStorage.setItem('chat_token', data.token);
+  }
+  return data;
 }
 
 async function register(username, email, password) {
@@ -1494,8 +1498,12 @@ async function register(username, email, password) {
     method: "POST",
     body: JSON.stringify({ username, email, password })
   });
-  token = data.token || "";
-  return data.user;
+  if (data.token) {
+    token = data.token;
+    // Optionally persist token for session continuity
+    // localStorage.setItem('chat_token', data.token);
+  }
+  return data;
 }
 
 function renderAttachment(attachment) {

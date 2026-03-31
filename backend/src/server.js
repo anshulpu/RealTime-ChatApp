@@ -24,7 +24,11 @@ const CORS_ORIGIN_RAW = process.env.CORS_ORIGIN || "";
 const CORS_ORIGINS = CORS_ORIGIN_RAW.split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
-const DEFAULT_CORS_ORIGINS = [`http://localhost:${PORT}`, "http://localhost:5173"];
+const DEFAULT_CORS_ORIGINS = [
+  `http://localhost:${PORT}`,
+  "http://localhost:5173",
+  "https://real-time-chat-app-kappa-olive.vercel.app"
+];
 const CORS_ORIGIN = CORS_ORIGINS.length ? CORS_ORIGINS : DEFAULT_CORS_ORIGINS;
 const REDIS_URL = process.env.REDIS_URL || "";
 
@@ -48,7 +52,21 @@ const io = new Server(server, {
 });
 
 app.use(helmet());
-app.use(cors({ origin: CORS_ORIGIN, credentials: true }));
+app.use(cors({
+  origin: CORS_ORIGIN,
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+}));
+// Explicitly handle preflight requests
+app.options("*", cors({
+  origin: CORS_ORIGIN,
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 

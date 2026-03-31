@@ -1,9 +1,6 @@
-const DEFAULT_BACKEND_PORT = "4000";
-const backendOrigin = window.location.port === DEFAULT_BACKEND_PORT
-  ? window.location.origin
-  : `${window.location.protocol}//${window.location.hostname}:${DEFAULT_BACKEND_PORT}`;
-const API_BASE = `${backendOrigin}/api`;
-const SOCKET_URL = backendOrigin;
+// Use deployed backend URL for API and WebSocket
+const API_BASE = "https://realtime-chatapp-1-4lno.onrender.com/api";
+const SOCKET_URL = "wss://realtime-chatapp-1-4lno.onrender.com";
 
 const authSection = document.getElementById("authSection");
 const chatSection = document.getElementById("chatSection");

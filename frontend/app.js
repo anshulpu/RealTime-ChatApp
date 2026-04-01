@@ -90,6 +90,15 @@ const callToastCallback = document.getElementById("callToastCallback");
 
 let token = "";
 let me = null;
+
+// Try to get token from cookie if available (for cross-site auth)
+function getCookie(name) {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop().split(';').shift();
+  return null;
+}
+token = getCookie("token") || "";
 let socket = null;
 let selected = null;
 let users = [];
@@ -2114,7 +2123,11 @@ registerForm.addEventListener("submit", async (event) => {
     showChat();
     await bootstrapChat();
   } catch (error) {
-    setAuthMessage(error.message, "error");
+    if (error.message && error.message.toLowerCase().includes("email already in use")) {
+      document.getElementById("registerEmailErr").textContent = "Email already in use";
+    } else {
+      setAuthMessage(error.message, "error");
+    }
   } finally {
     setButtonLoading(registerBtn, false);
   }

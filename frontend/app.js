@@ -1,6 +1,11 @@
-// Use deployed backend URL for API and WebSocket
-const API_BASE = "https://realtime-chatapp-1-4lno.onrender.com/api";
-const SOCKET_URL = "wss://realtime-chatapp-1-4lno.onrender.com";
+// Auto-detect API and WebSocket endpoints for local and deployed environments.
+// Optional override: localStorage.setItem("CHAT_API_ORIGIN", "https://your-backend.example.com")
+const configuredApiOrigin = localStorage.getItem("CHAT_API_ORIGIN") || "";
+const runtimeOrigin = window.location.origin;
+const isLocalHost = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
+const apiOrigin = configuredApiOrigin || (isLocalHost ? "http://localhost:4000" : runtimeOrigin);
+const API_BASE = `${apiOrigin.replace(/\/$/, "")}/api`;
+const SOCKET_URL = apiOrigin.replace(/^http/, "ws").replace(/\/$/, "");
 
 const authSection = document.getElementById("authSection");
 const chatSection = document.getElementById("chatSection");

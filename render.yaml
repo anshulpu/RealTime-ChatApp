@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: realtime-chatapp
+    env: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MONGODB_URI
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: MAINTENANCE_CLEANUP_TOKEN
+        sync: false
+      - key: ALLOW_VERIFIER_USERS
+        value: "false"

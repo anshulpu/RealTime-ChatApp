@@ -87,6 +87,37 @@ Alternative local cleanup command:
 4. Open:
    - `http://localhost:4000`
 
+## Deploy From GitHub (Render)
+
+This project can be deployed as a single service because the backend serves the frontend files.
+
+1. Push your latest code to GitHub.
+2. In Render, create a new Blueprint and select this repository.
+3. Render will detect `render.yaml` automatically.
+4. Set required environment variables in Render:
+   - `MONGODB_URI`
+   - `CORS_ORIGIN` (include your Render URL, and any allowed frontend origins)
+5. Deploy.
+
+### Required Environment Variables
+
+- `MONGODB_URI` (required)
+- `JWT_SECRET` (required, generated automatically from `render.yaml`)
+- `CORS_ORIGIN` (required)
+
+### Optional Environment Variables
+
+- `REDIS_URL`
+- `MAINTENANCE_CLEANUP_TOKEN`
+- `ALLOW_VERIFIER_USERS` (defaults to `false`)
+
+### Frontend Endpoint Behavior
+
+- In production: frontend uses same-origin API/WebSocket automatically.
+- In local dev: frontend defaults to `http://localhost:4000`.
+- Optional manual override in browser console:
+  - `localStorage.setItem("CHAT_API_ORIGIN", "https://your-backend.example.com")`
+
 ## Scaling Across Multiple Server Instances
 
 - Set `REDIS_URL` in `backend/.env` (e.g. `redis://127.0.0.1:6379`)

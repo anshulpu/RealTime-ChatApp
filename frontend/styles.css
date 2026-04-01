@@ -1747,11 +1747,159 @@ input:focus {
   background: #ffe8e8;
 }
 
+/* Keep auth screen colors exact and prevent muted/overridden appearance. */
+body:has(#authSection:not(.hidden)) {
+  background: linear-gradient(135deg, #f5f7fb, #e0f2fe);
+}
+
+body:has(#authSection:not(.hidden)) .bg-blobs {
+  opacity: 0.42;
+}
+
+body:has(#authSection:not(.hidden)) .blob {
+  filter: blur(26px);
+}
+
+body:has(#authSection:not(.hidden)) .auth-card {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+}
+
+body:has(#authSection:not(.hidden)) .auth-card h1,
+body:has(#authSection:not(.hidden)) label,
+body:has(#authSection:not(.hidden)) .checkbox,
+body:has(#authSection:not(.hidden)) input {
+  color: #1e293b;
+}
+
+body:has(#authSection:not(.hidden)) .tab {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #64748b;
+}
+
+body:has(#authSection:not(.hidden)) .tab.active {
+  background: #eff6ff;
+  border-color: rgba(59, 130, 246, 0.42);
+  color: #1e293b;
+}
+
+body:has(#authSection:not(.hidden)) .input-group input {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+body:has(#authSection:not(.hidden)) .primary {
+  background: linear-gradient(135deg, #3b82f6, #06b6d4);
+}
+
+body:has(#authSection:not(.hidden)) .primary:hover {
+  box-shadow: 0 12px 24px rgba(59, 130, 246, 0.28);
+}
+
+/* Browser-safe fallback for the same auth palette (no :has support needed). */
+.auth-card {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+}
+
+.auth-card h1,
+.auth-card label,
+.auth-card .checkbox,
+.auth-card input {
+  color: #1e293b;
+}
+
+.auth-card .tab {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #64748b;
+}
+
+.auth-card .tab.active {
+  background: #eff6ff;
+  border-color: rgba(59, 130, 246, 0.42);
+  color: #1e293b;
+}
+
+.auth-card .input-group input {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+.auth-card .primary {
+  background: linear-gradient(135deg, #3b82f6, #06b6d4);
+}
+
+.auth-card .primary:hover {
+  box-shadow: 0 12px 24px rgba(59, 130, 246, 0.28);
+}
+
 @media (max-width: 900px) {
   .chat-layout { grid-template-columns: 1fr; height: auto; min-height: 100vh; }
   .sidebar { max-height: 380px; }
   .chat-panel { min-height: 60vh; }
   .profile-panel {
     width: 100%;
+  }
+}
+
+/* Final auth theme lock to avoid any cascade conflicts in production. */
+body {
+  background: linear-gradient(135deg, #f5f7fb, #e0f2fe) !important;
+}
+
+.bg-blobs {
+  opacity: 0.46 !important;
+}
+
+#authSection.auth-card {
+  max-width: 460px !important;
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 24px !important;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.14) !important;
+}
+
+#authSection .tabs .tab {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #64748b !important;
+}
+
+#authSection .tabs .tab.active {
+  background: #eff6ff !important;
+  border-color: rgba(59, 130, 246, 0.45) !important;
+  color: #1e293b !important;
+}
+
+#authSection .input-group input {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #1e293b !important;
+}
+
+#authSection .input-group input:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16) !important;
+}
+
+#authSection .primary {
+  background: linear-gradient(135deg, #3b82f6, #06b6d4) !important;
+  color: #ffffff !important;
+}
+
+#authSection .primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px rgba(59, 130, 246, 0.28) !important;
+}
+
+@media (max-width: 560px) {
+  #authSection.auth-card {
+    margin: 14px;
+    padding: 22px;
+    border-radius: 20px;
   }
 }

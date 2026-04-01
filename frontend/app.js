@@ -1803,9 +1803,14 @@ function isSelectedPrivateMessage(message) {
 }
 
 function connectSocket() {
+  if (typeof window.io !== "function") {
+    setAuthMessage("Realtime service failed to load. Refresh once and try again.", true);
+    return;
+  }
+
   const options = { withCredentials: true };
   if (token) options.auth = { token };
-  socket = io(SOCKET_URL, options);
+  socket = window.io(SOCKET_URL, options);
 
   socket.on("userStatus", ({ userId, isOnline, lastSeen }) => {
     const target = users.find((u) => String(u.id) === String(userId));

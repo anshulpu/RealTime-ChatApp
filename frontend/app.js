@@ -166,6 +166,7 @@ let callAudioCtx = null;
 let callHistory = [];
 let missedCallCount = 0;
 let callToastTimerId = null;
+let lastMissedCallMeta = null;
 
 const LOCATION_MESSAGE_PREFIX = "__live_location__";
 const LOCATION_SEND_INTERVAL_MS = 12000;
@@ -391,6 +392,31 @@ function resetCallState() {
   resetCallModalControls();
   callModal.classList.add("hidden");
   hideCallToast();
+}
+
+async function callbackLastMissedCall() {
+  if (!lastMissedCallMeta?.peerId) {
+    typingStatus.textContent = "No recent missed call to call back";
+    return;
+  }
+
+  const peerId = String(lastMissedCallMeta.peerId);
+  const peer = users.find((u) => String(u.id) === peerId) || null;
+
+  selected = {
+    type: "private",
+    id: peerId,
+    title: peer?.username || lastMissedCallMeta.peerName || "Unknown"
+  };
+
+  clearUnreadForSelectedChat();
+  updateChatHeader();
+  renderUsers();
+  renderRooms();
+  setEmptyStateVisibility(false);
+  setComposerEnabled(true);
+
+  await startOutgoingCall(lastMissedCallMeta.callType || "voice");
 }
 
 async function ensureLocalMedia(type = "voice") {
@@ -1621,8 +1647,11 @@ async function loadMissedCalls() {
     updateCallBadge();
     renderCalls();
     if (missed[0]) {
-      currentCallPeerId = String(missed[0].callerId || "");
-      currentCallType = missed[0].callType || "voice";
+      lastMissedCallMeta = {
+        peerId: String(missed[0].callerId || ""),
+        peerName: missed[0].callerName || "",
+        callType: missed[0].callType || "voice"
+      };
       showCallToast({
         title: missed[0].callerName || "Missed call",
         text: `Missed call · ${formatCallTime(missed[0].startedAt)}`,
@@ -2149,8 +2178,11 @@ function connectSocket() {
     renderCalls();
     const latest = calls[0];
     if (latest) {
-      currentCallPeerId = String(latest.callerId || "");
-      currentCallType = latest.callType || "voice";
+      lastMissedCallMeta = {
+        peerId: String(latest.callerId || ""),
+        peerName: latest.callerName || "",
+        callType: latest.callType || "voice"
+      };
       showCallToast({
         title: latest.callerName || "Missed call",
         text: `Missed call · ${formatCallTime(latest.startedAt)}`,
@@ -2465,7 +2497,7 @@ callToastReject?.addEventListener("click", () => {
 });
 callToastCallback?.addEventListener("click", () => {
   hideCallToast();
-  if (currentCallPeerId) startOutgoingCall(currentCallType || "voice");
+  callbackLastMissedCall();
 });
 
 window.addEventListener("focus", () => {

@@ -108,8 +108,19 @@ This project can be deployed as a single service because the backend serves the 
 ### Optional Environment Variables
 
 - `REDIS_URL`
+- `TURN_URLS` (comma-separated TURN URLs, e.g. `turn:your-turn:3478,turns:your-turn:5349?transport=tcp`)
+- `TURN_USERNAME`
+- `TURN_CREDENTIAL`
 - `MAINTENANCE_CLEANUP_TOKEN`
 - `ALLOW_VERIFIER_USERS` (defaults to `false`)
+
+### WebRTC Calling (Cross-Device)
+
+- The app now serves WebRTC ICE config from `GET /api/chat/webrtc-config`.
+- It always includes Google STUN (`stun:stun.l.google.com:19302`).
+- If TURN env vars are set, those TURN servers are used.
+- If TURN env vars are not set, a public TURN fallback is used for basic connectivity.
+- For production reliability (mobile networks/NAT), configure your own TURN credentials.
 
 ### Frontend Endpoint Behavior
 

@@ -40,6 +40,46 @@ const mimeToExt = {
   "audio/mp4": ".m4a"
 };
 
+const defaultIceServers = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" }
+];
+
+const publicTurnFallback = {
+  urls: [
+    "turn:openrelay.metered.ca:80",
+    "turn:openrelay.metered.ca:443",
+    "turns:openrelay.metered.ca:443?transport=tcp"
+  ],
+  username: "openrelayproject",
+  credential: "openrelayproject"
+};
+
+const parseTurnUrls = (value) =>
+  String(value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const buildIceServers = () => {
+  const turnUrls = parseTurnUrls(process.env.TURN_URLS);
+  const turnUsername = String(process.env.TURN_USERNAME || "").trim();
+  const turnCredential = String(process.env.TURN_CREDENTIAL || "").trim();
+
+  if (turnUrls.length > 0 && turnUsername && turnCredential) {
+    return [
+      ...defaultIceServers,
+      {
+        urls: turnUrls,
+        username: turnUsername,
+        credential: turnCredential
+      }
+    ];
+  }
+
+  return [...defaultIceServers, publicTurnFallback];
+};
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadsDir = path.resolve(__dirname, "../../uploads");
@@ -138,6 +178,15 @@ const serializeCall = (call, usersById = {}) => {
 };
 
 export const buildChatRoutes = (jwtSecret) => {
+  router.get("/webrtc-config", authHttp(jwtSecret), async (_req, res) => {
+    return res.json({
+      rtcConfig: {
+        iceServers: buildIceServers(),
+        iceCandidatePoolSize: 10
+      }
+    });
+  });
+
   router.get("/users", authHttp(jwtSecret), async (req, res) => {
     const users = await User.find({
       _id: { $ne: req.user.id },

@@ -149,6 +149,7 @@ const unreadByChat = new Map();
 const baseDocumentTitle = document.title || "Realtime Chat";
 let peerConnection = null;
 let localCallStream = null;
+let remoteCallStream = null;
 let currentCallPeerId = "";
 let currentCallType = "voice";
 let currentCallId = "";
@@ -157,6 +158,7 @@ let isOutgoingCall = false;
 let isCallMuted = false;
 let isCameraEnabled = true;
 let pendingRemoteIceCandidates = [];
+let seenRemoteIceCandidateKeys = new Set();
 let callTimerId = null;
 let callConnectedAt = 0;
 let callRingtoneId = null;
@@ -168,9 +170,23 @@ let callToastTimerId = null;
 const LOCATION_MESSAGE_PREFIX = "__live_location__";
 const LOCATION_SEND_INTERVAL_MS = 12000;
 const LOCATION_MIN_MOVE_METERS = 15;
-const rtcConfig = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+const defaultRtcConfig = {
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+    {
+      urls: [
+        "turn:openrelay.metered.ca:80",
+        "turn:openrelay.metered.ca:443",
+        "turns:openrelay.metered.ca:443?transport=tcp"
+      ],
+      username: "openrelayproject",
+      credential: "openrelayproject"
+    }
+  ],
+  iceCandidatePoolSize: 10
 };
+let rtcConfig = { ...defaultRtcConfig };
 
 const isEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 const initials = (name) => String(name || "?").slice(0, 2).toUpperCase();
@@ -361,9 +377,11 @@ function resetCallState() {
   currentCallType = "voice";
   currentCallId = "";
   pendingRemoteIceCandidates = [];
+  seenRemoteIceCandidateKeys = new Set();
   isOutgoingCall = false;
   isCallMuted = false;
   isCameraEnabled = true;
+  remoteCallStream = null;
   remoteVideo.srcObject = null;
   localVideo.srcObject = null;
   closePeerConnection();
@@ -392,22 +410,87 @@ async function ensureLocalMedia(type = "voice") {
   return localCallStream;
 }
 
+function mediaPermissionErrorMessage(error, mode = "video") {
+  const code = error?.name || "UnknownError";
+  if (code === "NotAllowedError" || code === "SecurityError") {
+    return `Camera/microphone permission denied. Allow ${mode} permission in browser settings.`;
+  }
+  if (code === "NotFoundError" || code === "DevicesNotFoundError") {
+    return "Required camera/microphone device not found.";
+  }
+  if (code === "NotReadableError" || code === "TrackStartError") {
+    return "Camera or microphone is busy in another app.";
+  }
+  if (code === "OverconstrainedError") {
+    return "Camera or microphone constraints are not supported on this device.";
+  }
+  return `Unable to access ${mode} devices on this browser/device.`;
+}
+
+function normalizeIceServers(servers) {
+  if (!Array.isArray(servers)) return defaultRtcConfig.iceServers;
+
+  const normalized = servers
+    .map((server) => {
+      if (!server || typeof server !== "object") return null;
+      const urls = Array.isArray(server.urls)
+        ? server.urls.filter(Boolean)
+        : (typeof server.urls === "string" && server.urls ? [server.urls] : []);
+      if (urls.length === 0) return null;
+
+      const entry = { urls };
+      if (server.username) entry.username = String(server.username);
+      if (server.credential) entry.credential = String(server.credential);
+      return entry;
+    })
+    .filter(Boolean);
+
+  return normalized.length > 0 ? normalized : defaultRtcConfig.iceServers;
+}
+
+async function loadRtcConfig() {
+  try {
+    const data = await api("/chat/webrtc-config");
+    const incoming = data?.rtcConfig || {};
+    rtcConfig = {
+      iceServers: normalizeIceServers(incoming.iceServers),
+      iceCandidatePoolSize: Number.isFinite(incoming.iceCandidatePoolSize)
+        ? Math.max(0, Math.min(20, Number(incoming.iceCandidatePoolSize)))
+        : defaultRtcConfig.iceCandidatePoolSize
+    };
+  } catch {
+    rtcConfig = { ...defaultRtcConfig };
+  }
+}
+
 function createPeerConnection(peerId) {
   closePeerConnection();
   peerConnection = new RTCPeerConnection(rtcConfig);
+  remoteCallStream = new MediaStream();
+  remoteVideo.srcObject = remoteCallStream;
 
   peerConnection.onicecandidate = (event) => {
     if (!event.candidate || !peerId || !socket) return;
-    socket.emit("webrtc:ice", { toUserId: peerId, candidate: event.candidate });
+    socket.emit("webrtc:ice-candidate", { toUserId: peerId, candidate: event.candidate });
+  };
+
+  peerConnection.onicecandidateerror = () => {
+    if (callStatus.textContent.startsWith("Connected")) return;
+    callStatus.textContent = "Network negotiation issue. Trying TURN fallback...";
   };
 
   peerConnection.ontrack = (event) => {
     const [stream] = event.streams;
     if (stream) {
       remoteVideo.srcObject = stream;
-      callStatus.textContent = "Connected";
-      startCallTimer();
+    } else if (event.track) {
+      remoteCallStream?.addTrack(event.track);
+      remoteVideo.srcObject = remoteCallStream;
     }
+
+    remoteVideo.play?.().catch(() => {});
+    callStatus.textContent = "Connected";
+    startCallTimer();
   };
 
   peerConnection.onconnectionstatechange = () => {
@@ -439,6 +522,18 @@ function canReceiveIceFromUser(fromUserId) {
 function queueRemoteIceCandidate(candidate) {
   if (!candidate) return;
   pendingRemoteIceCandidates.push(candidate);
+}
+
+function remoteCandidateKey(candidate) {
+  return `${candidate?.candidate || ""}|${candidate?.sdpMid || ""}|${candidate?.sdpMLineIndex ?? ""}`;
+}
+
+function shouldProcessRemoteCandidate(candidate) {
+  const key = remoteCandidateKey(candidate);
+  if (!key) return true;
+  if (seenRemoteIceCandidateKeys.has(key)) return false;
+  seenRemoteIceCandidateKeys.add(key);
+  return true;
 }
 
 async function flushPendingIceCandidates() {
@@ -528,7 +623,7 @@ async function startOutgoingCall(type) {
       }
     });
   } catch (error) {
-    typingStatus.textContent = error?.message || "Unable to access media for call";
+    typingStatus.textContent = mediaPermissionErrorMessage(error, type === "video" ? "video" : "audio");
     resetCallState();
   }
 }
@@ -570,7 +665,13 @@ async function acceptIncomingCall() {
     pendingIncomingOffer = null;
     stopRingtone();
   } catch (error) {
-    typingStatus.textContent = error?.message || "Failed to accept call";
+    typingStatus.textContent = mediaPermissionErrorMessage(error, callType);
+    if (socket && pendingIncomingOffer?.fromUserId) {
+      socket.emit("webrtc:reject", {
+        toUserId: pendingIncomingOffer.fromUserId,
+        callId: pendingIncomingOffer.callId || currentCallId
+      });
+    }
     resetCallState();
   }
 }
@@ -1979,8 +2080,9 @@ function connectSocket() {
     }
   });
 
-  socket.on("webrtc:ice", async ({ fromUserId, candidate }) => {
+  const handleRemoteIceCandidate = async ({ fromUserId, candidate }) => {
     if (!candidate || !canReceiveIceFromUser(fromUserId)) return;
+    if (!shouldProcessRemoteCandidate(candidate)) return;
 
     if (!peerConnection || !peerConnection.remoteDescription) {
       queueRemoteIceCandidate(candidate);
@@ -1992,7 +2094,10 @@ function connectSocket() {
     } catch {
       queueRemoteIceCandidate(candidate);
     }
-  });
+  };
+
+  socket.on("webrtc:ice", handleRemoteIceCandidate);
+  socket.on("webrtc:ice-candidate", handleRemoteIceCandidate);
 
   socket.on("webrtc:reject", ({ fromUserId, callId }) => {
     if (String(fromUserId) !== String(currentCallPeerId)) return;
@@ -2104,6 +2209,7 @@ async function bootstrapChat() {
   updateLocationButtonUI();
   await loadCallHistory();
   await loadMissedCalls();
+  await loadRtcConfig();
   connectSocket();
 }
 

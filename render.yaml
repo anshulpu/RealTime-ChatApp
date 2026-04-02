@@ -21,6 +21,12 @@ services:
         sync: false
       - key: REDIS_URL
         sync: false
+      - key: TURN_URLS
+        sync: false
+      - key: TURN_USERNAME
+        sync: false
+      - key: TURN_CREDENTIAL
+        sync: false
       - key: MAINTENANCE_CLEANUP_TOKEN
         sync: false
       - key: ALLOW_VERIFIER_USERS

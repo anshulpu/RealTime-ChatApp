@@ -376,7 +376,7 @@ export const registerSocketHandlers = (io, { socketState } = {}) => {
       }
     });
 
-    socket.on("webrtc:ice", async (payload, ack) => {
+    const handleIceCandidate = async (payload, ack) => {
       try {
         const toUserId = String(payload?.toUserId || "");
         const candidate = payload?.candidate;
@@ -393,11 +393,19 @@ export const registerSocketHandlers = (io, { socketState } = {}) => {
           candidate
         });
 
+        io.to(`user:${toUserId}`).emit("webrtc:ice-candidate", {
+          fromUserId: String(userId),
+          candidate
+        });
+
         ack?.({ ok: true });
       } catch {
         ack?.({ ok: false, message: "Failed to send ICE candidate" });
       }
-    });
+    };
+
+    socket.on("webrtc:ice", handleIceCandidate);
+    socket.on("webrtc:ice-candidate", handleIceCandidate);
 
     socket.on("webrtc:reject", (payload, ack) => {
       const toUserId = String(payload?.toUserId || "");

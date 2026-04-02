@@ -422,7 +422,7 @@ async function startOutgoingCall(type) {
     typingStatus.textContent = "Select a private chat first";
     return;
   }
-  if (!socket) {
+  if (!socket || !socket.connected) {
     typingStatus.textContent = "Socket is disconnected";
     return;
   }

@@ -128,40 +128,10 @@ const serializeCall = (call, usersById = {}) => {
 };
 
 export const registerSocketHandlers = (io, { socketState } = {}) => {
-  io.on("connection", async (socket) => {
+  io.on("connection", (socket) => {
     const userId = socket.user.id;
-
-    await socketState?.registerSocket?.(userId, socket.id);
-    const currentSocketCount = await socketState?.getActiveSocketCount?.(userId) || 0;
-    console.log(`[socket][connect] user=${userId} socket=${socket.id} activeSockets=${currentSocketCount}`);
-
-    const userRooms = await Room.find({ members: userId }).select("_id").lean();
-    userRooms.forEach((r) => socket.join(`room:${String(r._id)}`));
+    // Join private user room immediately so direct events don't race with async setup.
     socket.join(`user:${userId}`);
-
-    await syncPresence(io, userId, socketState);
-
-    const missedCalls = await Call.find({ receiverId: userId, status: "missed", seenByReceiver: false })
-      .sort({ startedAt: -1 })
-      .limit(10)
-      .lean();
-
-    if (missedCalls.length > 0) {
-      const userIds = Array.from(new Set(missedCalls.map((c) => String(c.callerId))));
-      const users = await User.find({ _id: { $in: userIds } }).select("username avatarUrl").lean();
-      const usersById = users.reduce((acc, u) => {
-        acc[String(u._id)] = u;
-        return acc;
-      }, {});
-
-      const payload = missedCalls.map((call) => serializeCall(call, usersById));
-      io.to(`user:${userId}`).emit("call:missed", { calls: payload });
-
-      await Call.updateMany(
-        { _id: { $in: missedCalls.map((c) => c._id) } },
-        { $set: { seenByReceiver: true } }
-      );
-    }
 
     socket.on("typing", ({ toUserId, roomId, isTyping }) => {
       if (roomId && mongoose.isValidObjectId(roomId)) {
@@ -472,6 +442,42 @@ export const registerSocketHandlers = (io, { socketState } = {}) => {
       const currentSocketCount = await socketState?.getActiveSocketCount?.(userId) || 0;
       console.log(`[socket][disconnect] user=${userId} socket=${socket.id} activeSockets=${currentSocketCount}`);
       await syncPresence(io, userId, socketState);
+    });
+
+    // Complete heavier initialization after handlers are ready to avoid dropping early events.
+    (async () => {
+      await socketState?.registerSocket?.(userId, socket.id);
+      const currentSocketCount = await socketState?.getActiveSocketCount?.(userId) || 0;
+      console.log(`[socket][connect] user=${userId} socket=${socket.id} activeSockets=${currentSocketCount}`);
+
+      const userRooms = await Room.find({ members: userId }).select("_id").lean();
+      userRooms.forEach((r) => socket.join(`room:${String(r._id)}`));
+
+      await syncPresence(io, userId, socketState);
+
+      const missedCalls = await Call.find({ receiverId: userId, status: "missed", seenByReceiver: false })
+        .sort({ startedAt: -1 })
+        .limit(10)
+        .lean();
+
+      if (missedCalls.length > 0) {
+        const callerIds = Array.from(new Set(missedCalls.map((c) => String(c.callerId))));
+        const users = await User.find({ _id: { $in: callerIds } }).select("username avatarUrl").lean();
+        const usersById = users.reduce((acc, u) => {
+          acc[String(u._id)] = u;
+          return acc;
+        }, {});
+
+        const payload = missedCalls.map((call) => serializeCall(call, usersById));
+        io.to(`user:${userId}`).emit("call:missed", { calls: payload });
+
+        await Call.updateMany(
+          { _id: { $in: missedCalls.map((c) => c._id) } },
+          { $set: { seenByReceiver: true } }
+        );
+      }
+    })().catch((error) => {
+      console.error(`[socket][init] failed for user=${userId}: ${error.message}`);
     });
   });
 };

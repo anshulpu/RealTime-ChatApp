@@ -156,6 +156,7 @@ let pendingIncomingOffer = null;
 let isOutgoingCall = false;
 let isCallMuted = false;
 let isCameraEnabled = true;
+let pendingRemoteIceCandidates = [];
 let callTimerId = null;
 let callConnectedAt = 0;
 let callRingtoneId = null;
@@ -359,6 +360,7 @@ function resetCallState() {
   currentCallPeerId = "";
   currentCallType = "voice";
   currentCallId = "";
+  pendingRemoteIceCandidates = [];
   isOutgoingCall = false;
   isCallMuted = false;
   isCameraEnabled = true;
@@ -408,6 +410,18 @@ function createPeerConnection(peerId) {
     }
   };
 
+  peerConnection.onconnectionstatechange = () => {
+    if (!peerConnection) return;
+    const state = peerConnection.connectionState;
+    if (state === "failed" || state === "disconnected") {
+      callStatus.textContent = "Reconnecting...";
+      return;
+    }
+    if (state === "closed") {
+      stopCallTimer();
+    }
+  };
+
   if (localCallStream) {
     localCallStream.getTracks().forEach((track) => {
       peerConnection.addTrack(track, localCallStream);
@@ -415,6 +429,32 @@ function createPeerConnection(peerId) {
   }
 
   return peerConnection;
+}
+
+function canReceiveIceFromUser(fromUserId) {
+  const incomingPeerId = pendingIncomingOffer?.fromUserId || "";
+  return String(fromUserId) === String(currentCallPeerId || incomingPeerId);
+}
+
+function queueRemoteIceCandidate(candidate) {
+  if (!candidate) return;
+  pendingRemoteIceCandidates.push(candidate);
+}
+
+async function flushPendingIceCandidates() {
+  if (!peerConnection || !peerConnection.remoteDescription) return;
+  if (pendingRemoteIceCandidates.length === 0) return;
+
+  const queued = pendingRemoteIceCandidates;
+  pendingRemoteIceCandidates = [];
+
+  for (const candidate of queued) {
+    try {
+      await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+    } catch {
+      // ignore invalid/stale candidates
+    }
+  }
 }
 
 async function startOutgoingCall(type) {
@@ -508,6 +548,7 @@ async function acceptIncomingCall() {
     await ensureLocalMedia(callType);
     createPeerConnection(fromUserId);
     await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+    await flushPendingIceCandidates();
 
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
@@ -1929,8 +1970,8 @@ function connectSocket() {
     if (!peerConnection || !answer || String(fromUserId) !== String(currentCallPeerId)) return;
     try {
       await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-      callStatus.textContent = "Connected";
-      startCallTimer();
+      await flushPendingIceCandidates();
+      callStatus.textContent = "Connecting...";
       if (callId && !currentCallId) currentCallId = String(callId);
     } catch {
       typingStatus.textContent = "Failed to establish call";
@@ -1939,11 +1980,17 @@ function connectSocket() {
   });
 
   socket.on("webrtc:ice", async ({ fromUserId, candidate }) => {
-    if (!peerConnection || !candidate || String(fromUserId) !== String(currentCallPeerId)) return;
+    if (!candidate || !canReceiveIceFromUser(fromUserId)) return;
+
+    if (!peerConnection || !peerConnection.remoteDescription) {
+      queueRemoteIceCandidate(candidate);
+      return;
+    }
+
     try {
       await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
     } catch {
-      // ignore broken ICE candidate
+      queueRemoteIceCandidate(candidate);
     }
   });
 
@@ -1983,8 +2030,9 @@ function connectSocket() {
       callStatus.textContent = "User is offline · Missed call";
     }
     if (status === "answered") {
-      callStatus.textContent = "Connected";
-      startCallTimer();
+      if (!remoteVideo.srcObject) {
+        callStatus.textContent = "Call answered. Connecting media...";
+      }
     }
   });
 

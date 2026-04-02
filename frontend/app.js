@@ -1804,7 +1804,7 @@ function isSelectedPrivateMessage(message) {
 
 function connectSocket() {
   if (typeof window.io !== "function") {
-    setAuthMessage("Realtime service failed to load. Refresh once and try again.", true);
+    setAuthMessage("Realtime service failed to load. Refresh once and try again.", "error");
     return;
   }
 
@@ -2145,8 +2145,14 @@ registerForm.addEventListener("submit", async (event) => {
 
 messageForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (!socket || !selected) {
+  if (!selected) {
     typingStatus.textContent = "Select a user or room first";
+    return;
+  }
+
+  if (!socket || !socket.connected) {
+    typingStatus.textContent = "Realtime connection lost. Reconnecting...";
+    connectSocket();
     return;
   }
 

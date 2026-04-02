@@ -30,6 +30,12 @@ const DEFAULT_CORS_ORIGINS = [
   "https://real-time-chat-app-kappa-olive.vercel.app"
 ];
 const CORS_ORIGIN = CORS_ORIGINS.length ? CORS_ORIGINS : DEFAULT_CORS_ORIGINS;
+const SOCKET_CONNECT_SOURCES = Array.from(new Set([
+  ...CORS_ORIGIN,
+  ...CORS_ORIGIN.map((origin) => origin.replace(/^http:/, "ws:").replace(/^https:/, "wss:")),
+  "ws:",
+  "wss:"
+]));
 const REDIS_URL = process.env.REDIS_URL || "";
 
 if (!JWT_SECRET || !MONGODB_URI) {
@@ -51,7 +57,22 @@ const io = new Server(server, {
   }
 });
 
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      connectSrc: ["'self'", ...SOCKET_CONNECT_SOURCES],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      mediaSrc: ["'self'", "blob:"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      frameAncestors: ["'self'"]
+    }
+  }
+}));
 app.use(cors({
   origin: CORS_ORIGIN,
   credentials: true,
